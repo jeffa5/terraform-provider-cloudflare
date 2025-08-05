@@ -1,5 +1,30 @@
 # Changelog
 
+## 5.8.3 (2025-08-05)
+
+Full Changelog: [v5.8.2...v5.8.3](https://github.com/cloudflare/terraform-provider-cloudflare/compare/v5.8.2...v5.8.3)
+
+### Features
+
+* **api:** api update ([746be08](https://github.com/cloudflare/terraform-provider-cloudflare/commit/746be08713550ddb14cdae610e9a1ec7e420833c))
+* **api:** api update ([bab236f](https://github.com/cloudflare/terraform-provider-cloudflare/commit/bab236f931257e7a071840b4c4837231fca694dd))
+* **cloudflare_list_item:** implement import ([f44b7c3](https://github.com/cloudflare/terraform-provider-cloudflare/commit/f44b7c3b581e77f937e1a4e0c9942ba731e0fdca))
+
+
+### Bug Fixes
+
+* **filter:** expression does not require replacement ([e052497](https://github.com/cloudflare/terraform-provider-cloudflare/commit/e052497a24e1dcc971aeb4522401ce15924bd24f))
+* re-add ruleset and fix up snippet ([6974010](https://github.com/cloudflare/terraform-provider-cloudflare/commit/69740101f9ce8d05202e7f5c9f7484e3d46e4384))
+
+
+### Chores
+
+* **api:** upload stainless config from cloudflare-config ([a2c5c6a](https://github.com/cloudflare/terraform-provider-cloudflare/commit/a2c5c6a4ebe8034eea5e836b9aa934a0e6d37c72))
+* **api:** upload stainless config from cloudflare-config ([fa1df78](https://github.com/cloudflare/terraform-provider-cloudflare/commit/fa1df785491f98e923cf6592940a28aa8d271942))
+* **api:** upload stainless config from cloudflare-config ([17f069f](https://github.com/cloudflare/terraform-provider-cloudflare/commit/17f069fd243fde42250fde7b64f210012a9116f5))
+* modernize zero_trust_access_policy acceptance tests ([a0326ed](https://github.com/cloudflare/terraform-provider-cloudflare/commit/a0326ed93e8e3d15294228387232d1f7a3cd43b4))
+* update to v5 ([d3f9d3e](https://github.com/cloudflare/terraform-provider-cloudflare/commit/d3f9d3e5cbb27d27048e3c73f9baae15204a136d))
+
 ## 5.8.2 (2025-08-01)
 
 Full Changelog: [v5.8.1...v5.8.2](https://github.com/cloudflare/terraform-provider-cloudflare/compare/v5.8.1...v5.8.2)
