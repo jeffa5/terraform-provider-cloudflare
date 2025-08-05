@@ -14,7 +14,10 @@ import (
 	"github.com/cloudflare/terraform-provider-cloudflare/internal/utils"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 	"github.com/pkg/errors"
 )
 
@@ -81,6 +84,7 @@ var (
 func TestAccCloudflareAccessApplication_BasicZone(t *testing.T) {
 	rnd := utils.GenerateRandomResourceName()
 	name := fmt.Sprintf("cloudflare_zero_trust_access_application.%s", rnd)
+	resourceName := name
 
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
@@ -91,17 +95,23 @@ func TestAccCloudflareAccessApplication_BasicZone(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccCloudflareAccessApplicationConfigBasic(rnd, domain, cloudflare.ZoneIdentifier(zoneID)),
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(name, consts.ZoneIDSchemaKey, zoneID),
-					resource.TestCheckResourceAttr(name, "name", rnd),
-					resource.TestCheckResourceAttr(name, "domain", fmt.Sprintf("%s.%s", rnd, domain)),
-					resource.TestCheckResourceAttr(name, "type", "self_hosted"),
-					resource.TestCheckResourceAttr(name, "session_duration", "24h"),
-					resource.TestCheckResourceAttr(name, "cors_headers.#", "0"),
-					resource.TestCheckResourceAttr(name, "saas_app.%", "0"),
-					resource.TestCheckResourceAttr(name, "auto_redirect_to_identity", "false"),
-					resource.TestCheckResourceAttr(name, "service_auth_401_redirect", "false"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New(consts.ZoneIDSchemaKey), knownvalue.StringExact(zoneID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rnd)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("domain"), knownvalue.StringExact(fmt.Sprintf("%s.%s", rnd, domain))),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("type"), knownvalue.StringExact("self_hosted")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("session_duration"), knownvalue.StringExact("24h")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cors_headers"), knownvalue.Null()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("auto_redirect_to_identity"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("service_auth_401_redirect"), knownvalue.Bool(false)),
+				},
+			},
+			{
+				ResourceName:        resourceName,
+				ImportState:         true,
+				ImportStateVerify:   true,
+				ImportStateIdPrefix: fmt.Sprintf("zones/%s/", zoneID),
+				ImportStateVerifyIgnore: []string{"service_auth_401_redirect", "destinations", "enable_binding_cookie", "options_preflight_bypass", "self_hosted_domains"},
 			},
 			{
 				// Ensures no diff on second plan
@@ -115,6 +125,7 @@ func TestAccCloudflareAccessApplication_BasicZone(t *testing.T) {
 func TestAccCloudflareAccessApplication_BasicAccount(t *testing.T) {
 	rnd := utils.GenerateRandomResourceName()
 	name := fmt.Sprintf("cloudflare_zero_trust_access_application.%s", rnd)
+	resourceName := name
 
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
@@ -126,16 +137,22 @@ func TestAccCloudflareAccessApplication_BasicAccount(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccCloudflareAccessApplicationConfigBasic(rnd, domain, cloudflare.AccountIdentifier(accountID)),
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(name, consts.AccountIDSchemaKey, accountID),
-					resource.TestCheckResourceAttr(name, "name", rnd),
-					resource.TestCheckResourceAttr(name, "domain", fmt.Sprintf("%s.%s", rnd, domain)),
-					resource.TestCheckResourceAttr(name, "type", "self_hosted"),
-					resource.TestCheckResourceAttr(name, "session_duration", "24h"),
-					resource.TestCheckResourceAttr(name, "cors_headers.#", "0"),
-					resource.TestCheckResourceAttr(name, "sass_app.#", "0"),
-					resource.TestCheckResourceAttr(name, "auto_redirect_to_identity", "false"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New(consts.AccountIDSchemaKey), knownvalue.StringExact(accountID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rnd)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("domain"), knownvalue.StringExact(fmt.Sprintf("%s.%s", rnd, domain))),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("type"), knownvalue.StringExact("self_hosted")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("session_duration"), knownvalue.StringExact("24h")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cors_headers"), knownvalue.Null()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("auto_redirect_to_identity"), knownvalue.Bool(false)),
+				},
+			},
+			{
+				ResourceName:        resourceName,
+				ImportState:         true,
+				ImportStateVerify:   true,
+				ImportStateIdPrefix: fmt.Sprintf("accounts/%s/", accountID),
+				ImportStateVerifyIgnore: []string{"service_auth_401_redirect", "destinations", "enable_binding_cookie", "options_preflight_bypass", "self_hosted_domains"},
 			},
 			{
 				// Ensures no diff on second plan
@@ -149,7 +166,7 @@ func TestAccCloudflareAccessApplication_BasicAccount(t *testing.T) {
 func TestAccCloudflareAccessApplication_WithSCIMConfigHttpBasic(t *testing.T) {
 	rnd := utils.GenerateRandomResourceName()
 	name := fmt.Sprintf("cloudflare_zero_trust_access_application.%s", rnd)
-	idpName := fmt.Sprintf("cloudflare_zero_trust_access_identity_provider.%s", rnd)
+	resourceName := name
 
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
@@ -160,27 +177,33 @@ func TestAccCloudflareAccessApplication_WithSCIMConfigHttpBasic(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccCloudflareAccessApplicationSCIMConfigValidHttpBasic(rnd, accountID, domain),
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(name, consts.AccountIDSchemaKey, accountID),
-					resource.TestCheckResourceAttr(name, "name", rnd),
-					resource.TestCheckResourceAttr(name, "domain", fmt.Sprintf("%s.%s", rnd, domain)),
-					resource.TestCheckResourceAttr(name, "type", "self_hosted"),
-					resource.TestCheckResourceAttr(name, "session_duration", "24h"),
-					resource.TestCheckResourceAttr(name, "scim_config.enabled", "true"),
-					resource.TestCheckResourceAttr(name, "scim_config.remote_uri", "scim.com"),
-					resource.TestCheckResourceAttrPair(name, "scim_config.idp_uid", idpName, "id"),
-					resource.TestCheckResourceAttr(name, "scim_config.deactivate_on_delete", "true"),
-					resource.TestCheckResourceAttr(name, "scim_config.authentication.scheme", "httpbasic"),
-					resource.TestCheckResourceAttr(name, "scim_config.authentication.user", "test"),
-					resource.TestCheckResourceAttrSet(name, "scim_config.authentication.password"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.schema", "urn:ietf:params:scim:schemas:core:2.0:User"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.enabled", "true"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.filter", "title pr or userType eq \"Intern\""),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.transform_jsonata", "$merge([$, {'userName': $substringBefore($.userName, '@') & '+test@' & $substringAfter($.userName, '@')}])"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.operations.create", "true"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.operations.update", "true"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.operations.delete", "true"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New(consts.AccountIDSchemaKey), knownvalue.StringExact(accountID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rnd)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("domain"), knownvalue.StringExact(fmt.Sprintf("%s.%s", rnd, domain))),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("type"), knownvalue.StringExact("self_hosted")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("session_duration"), knownvalue.StringExact("24h")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("remote_uri"), knownvalue.StringExact("scim.com")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("deactivate_on_delete"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("authentication").AtMapKey("scheme"), knownvalue.StringExact("httpbasic")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("authentication").AtMapKey("user"), knownvalue.StringExact("test")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("authentication").AtMapKey("password"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("schema"), knownvalue.StringExact("urn:ietf:params:scim:schemas:core:2.0:User")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("filter"), knownvalue.StringExact("title pr or userType eq \"Intern\"")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("transform_jsonata"), knownvalue.StringExact("$merge([$, {'userName': $substringBefore($.userName, '@') & '+test@' & $substringAfter($.userName, '@')}])")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("operations").AtMapKey("create"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("operations").AtMapKey("update"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("operations").AtMapKey("delete"), knownvalue.Bool(true)),
+				},
+			},
+			{
+				ResourceName:        resourceName,
+				ImportState:         true,
+				ImportStateVerify:   true,
+				ImportStateIdPrefix: fmt.Sprintf("accounts/%s/", accountID),
+				ImportStateVerifyIgnore: []string{"service_auth_401_redirect", "destinations", "enable_binding_cookie", "options_preflight_bypass", "self_hosted_domains"},
 			},
 			{
 				// Ensures no diff on second plan
@@ -194,7 +217,7 @@ func TestAccCloudflareAccessApplication_WithSCIMConfigHttpBasic(t *testing.T) {
 func TestAccCloudflareAccessApplication_UpdateSCIMConfig(t *testing.T) {
 	rnd := utils.GenerateRandomResourceName()
 	name := fmt.Sprintf("cloudflare_zero_trust_access_application.%s", rnd)
-	idpName := fmt.Sprintf("cloudflare_zero_trust_access_identity_provider.%s", rnd)
+	resourceName := name
 
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
@@ -205,27 +228,33 @@ func TestAccCloudflareAccessApplication_UpdateSCIMConfig(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccCloudflareAccessApplicationSCIMConfigValidHttpBasic(rnd, accountID, domain),
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(name, consts.AccountIDSchemaKey, accountID),
-					resource.TestCheckResourceAttr(name, "name", rnd),
-					resource.TestCheckResourceAttr(name, "domain", fmt.Sprintf("%s.%s", rnd, domain)),
-					resource.TestCheckResourceAttr(name, "type", "self_hosted"),
-					resource.TestCheckResourceAttr(name, "session_duration", "24h"),
-					resource.TestCheckResourceAttr(name, "scim_config.enabled", "true"),
-					resource.TestCheckResourceAttr(name, "scim_config.remote_uri", "scim.com"),
-					resource.TestCheckResourceAttrPair(name, "scim_config.idp_uid", idpName, "id"),
-					resource.TestCheckResourceAttr(name, "scim_config.deactivate_on_delete", "true"),
-					resource.TestCheckResourceAttr(name, "scim_config.authentication.scheme", "httpbasic"),
-					resource.TestCheckResourceAttr(name, "scim_config.authentication.user", "test"),
-					resource.TestCheckResourceAttrSet(name, "scim_config.authentication.password"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.schema", "urn:ietf:params:scim:schemas:core:2.0:User"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.enabled", "true"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.filter", "title pr or userType eq \"Intern\""),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.transform_jsonata", "$merge([$, {'userName': $substringBefore($.userName, '@') & '+test@' & $substringAfter($.userName, '@')}])"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.operations.create", "true"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.operations.update", "true"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.operations.delete", "true"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New(consts.AccountIDSchemaKey), knownvalue.StringExact(accountID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rnd)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("domain"), knownvalue.StringExact(fmt.Sprintf("%s.%s", rnd, domain))),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("type"), knownvalue.StringExact("self_hosted")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("session_duration"), knownvalue.StringExact("24h")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("remote_uri"), knownvalue.StringExact("scim.com")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("deactivate_on_delete"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("authentication").AtMapKey("scheme"), knownvalue.StringExact("httpbasic")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("authentication").AtMapKey("user"), knownvalue.StringExact("test")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("authentication").AtMapKey("password"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("schema"), knownvalue.StringExact("urn:ietf:params:scim:schemas:core:2.0:User")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("filter"), knownvalue.StringExact("title pr or userType eq \"Intern\"")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("transform_jsonata"), knownvalue.StringExact("$merge([$, {'userName': $substringBefore($.userName, '@') & '+test@' & $substringAfter($.userName, '@')}])")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("operations").AtMapKey("create"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("operations").AtMapKey("update"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("operations").AtMapKey("delete"), knownvalue.Bool(true)),
+				},
+			},
+			{
+				ResourceName:        resourceName,
+				ImportState:         true,
+				ImportStateVerify:   true,
+				ImportStateIdPrefix: fmt.Sprintf("accounts/%s/", accountID),
+				ImportStateVerifyIgnore: []string{"service_auth_401_redirect", "destinations", "enable_binding_cookie", "options_preflight_bypass", "self_hosted_domains"},
 			},
 			{
 				// Ensures no diff on second plan
@@ -234,20 +263,19 @@ func TestAccCloudflareAccessApplication_UpdateSCIMConfig(t *testing.T) {
 			},
 			{
 				Config: testAccCloudflareAccessApplicationSCIMConfigValidOAuthBearerTokenNoMappings(rnd, accountID, domain),
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(name, consts.AccountIDSchemaKey, accountID),
-					resource.TestCheckResourceAttr(name, "name", rnd),
-					resource.TestCheckResourceAttr(name, "domain", fmt.Sprintf("%s.%s", rnd, domain)),
-					resource.TestCheckResourceAttr(name, "type", "self_hosted"),
-					resource.TestCheckResourceAttr(name, "session_duration", "24h"),
-					resource.TestCheckResourceAttr(name, "scim_config.enabled", "false"),
-					resource.TestCheckResourceAttr(name, "scim_config.remote_uri", "scim2.com"),
-					resource.TestCheckResourceAttrPair(name, "scim_config.idp_uid", idpName, "id"),
-					resource.TestCheckResourceAttr(name, "scim_config.deactivate_on_delete", "false"),
-					resource.TestCheckResourceAttr(name, "scim_config.authentication.scheme", "oauthbearertoken"),
-					resource.TestCheckResourceAttrSet(name, "scim_config.authentication.token"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.#", "0"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New(consts.AccountIDSchemaKey), knownvalue.StringExact(accountID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rnd)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("domain"), knownvalue.StringExact(fmt.Sprintf("%s.%s", rnd, domain))),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("type"), knownvalue.StringExact("self_hosted")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("session_duration"), knownvalue.StringExact("24h")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("enabled"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("remote_uri"), knownvalue.StringExact("scim2.com")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("deactivate_on_delete"), knownvalue.Bool(false)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("authentication").AtMapKey("scheme"), knownvalue.StringExact("oauthbearertoken")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("authentication").AtMapKey("token"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings"), knownvalue.ListSizeExact(0)),
+				},
 			},
 			{
 				// Ensures no diff on last plan
@@ -297,7 +325,7 @@ func TestAccCloudflareAccessApplication_WithSCIMConfigHttpBasicMissingRequired(t
 func TestAccCloudflareAccessApplication_WithSCIMConfigOAuthBearerToken(t *testing.T) {
 	rnd := utils.GenerateRandomResourceName()
 	name := fmt.Sprintf("cloudflare_zero_trust_access_application.%s", rnd)
-	idpName := fmt.Sprintf("cloudflare_zero_trust_access_identity_provider.%s", rnd)
+	resourceName := name
 
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
@@ -308,26 +336,32 @@ func TestAccCloudflareAccessApplication_WithSCIMConfigOAuthBearerToken(t *testin
 		Steps: []resource.TestStep{
 			{
 				Config: testAccCloudflareAccessApplicationSCIMConfigValidOAuthBearerToken(rnd, accountID, domain),
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(name, consts.AccountIDSchemaKey, accountID),
-					resource.TestCheckResourceAttr(name, "name", rnd),
-					resource.TestCheckResourceAttr(name, "domain", fmt.Sprintf("%s.%s", rnd, domain)),
-					resource.TestCheckResourceAttr(name, "type", "self_hosted"),
-					resource.TestCheckResourceAttr(name, "session_duration", "24h"),
-					resource.TestCheckResourceAttr(name, "scim_config.enabled", "true"),
-					resource.TestCheckResourceAttr(name, "scim_config.remote_uri", "scim.com"),
-					resource.TestCheckResourceAttrPair(name, "scim_config.idp_uid", idpName, "id"),
-					resource.TestCheckResourceAttr(name, "scim_config.deactivate_on_delete", "true"),
-					resource.TestCheckResourceAttr(name, "scim_config.authentication.scheme", "oauthbearertoken"),
-					resource.TestCheckResourceAttrSet(name, "scim_config.authentication.token"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.schema", "urn:ietf:params:scim:schemas:core:2.0:User"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.enabled", "true"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.filter", "title pr or userType eq \"Intern\""),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.transform_jsonata", "$merge([$, {'userName': $substringBefore($.userName, '@') & '+test@' & $substringAfter($.userName, '@')}])"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.operations.create", "true"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.operations.update", "true"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.operations.delete", "true"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New(consts.AccountIDSchemaKey), knownvalue.StringExact(accountID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rnd)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("domain"), knownvalue.StringExact(fmt.Sprintf("%s.%s", rnd, domain))),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("type"), knownvalue.StringExact("self_hosted")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("session_duration"), knownvalue.StringExact("24h")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("remote_uri"), knownvalue.StringExact("scim.com")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("deactivate_on_delete"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("authentication").AtMapKey("scheme"), knownvalue.StringExact("oauthbearertoken")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("authentication").AtMapKey("token"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("schema"), knownvalue.StringExact("urn:ietf:params:scim:schemas:core:2.0:User")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("filter"), knownvalue.StringExact("title pr or userType eq \"Intern\"")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("transform_jsonata"), knownvalue.StringExact("$merge([$, {'userName': $substringBefore($.userName, '@') & '+test@' & $substringAfter($.userName, '@')}])")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("operations").AtMapKey("create"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("operations").AtMapKey("update"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("operations").AtMapKey("delete"), knownvalue.Bool(true)),
+				},
+			},
+			{
+				ResourceName:        resourceName,
+				ImportState:         true,
+				ImportStateVerify:   true,
+				ImportStateIdPrefix: fmt.Sprintf("accounts/%s/", accountID),
+				ImportStateVerifyIgnore: []string{"service_auth_401_redirect", "destinations", "enable_binding_cookie", "options_preflight_bypass", "self_hosted_domains"},
 			},
 			{
 				// Ensures no diff on last plan
@@ -341,7 +375,7 @@ func TestAccCloudflareAccessApplication_WithSCIMConfigOAuthBearerToken(t *testin
 func TestAccCloudflareAccessApplication_WithSCIMConfigOAuth2(t *testing.T) {
 	rnd := utils.GenerateRandomResourceName()
 	name := fmt.Sprintf("cloudflare_zero_trust_access_application.%s", rnd)
-	idpName := fmt.Sprintf("cloudflare_zero_trust_access_identity_provider.%s", rnd)
+	resourceName := name
 
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
@@ -352,31 +386,36 @@ func TestAccCloudflareAccessApplication_WithSCIMConfigOAuth2(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccCloudflareAccessApplicationSCIMConfigValidOAuth2(rnd, accountID, domain),
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(name, consts.AccountIDSchemaKey, accountID),
-					resource.TestCheckResourceAttr(name, "name", rnd),
-					resource.TestCheckResourceAttr(name, "domain", fmt.Sprintf("%s.%s", rnd, domain)),
-					resource.TestCheckResourceAttr(name, "type", "self_hosted"),
-					resource.TestCheckResourceAttr(name, "session_duration", "24h"),
-					resource.TestCheckResourceAttr(name, "scim_config.enabled", "true"),
-					resource.TestCheckResourceAttr(name, "scim_config.remote_uri", "scim.com"),
-					resource.TestCheckResourceAttrPair(name, "scim_config.idp_uid", idpName, "id"),
-					resource.TestCheckResourceAttr(name, "scim_config.deactivate_on_delete", "true"),
-					resource.TestCheckResourceAttr(name, "scim_config.authentication.scheme", "oauth2"),
-					resource.TestCheckResourceAttr(name, "scim_config.authentication.client_id", "beepboop"),
-					resource.TestCheckResourceAttrSet(name, "scim_config.authentication.client_secret"),
-					resource.TestCheckResourceAttr(name, "scim_config.authentication.authorization_url", "https://www.authorization.com"),
-					resource.TestCheckTypeSetElemAttr(name, "scim_config.authentication.scopes.*", "read"),
-					resource.TestCheckResourceAttr(name, "scim_config.authentication.scopes.#", "1"),
-					resource.TestCheckResourceAttr(name, "scim_config.authentication.token_url", "https://www.token.com"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.schema", "urn:ietf:params:scim:schemas:core:2.0:User"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.enabled", "true"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.filter", "title pr or userType eq \"Intern\""),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.transform_jsonata", "$merge([$, {'userName': $substringBefore($.userName, '@') & '+test@' & $substringAfter($.userName, '@')}])"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.operations.create", "true"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.operations.update", "true"),
-					resource.TestCheckResourceAttr(name, "scim_config.mappings.0.operations.delete", "true"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New(consts.AccountIDSchemaKey), knownvalue.StringExact(accountID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rnd)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("domain"), knownvalue.StringExact(fmt.Sprintf("%s.%s", rnd, domain))),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("type"), knownvalue.StringExact("self_hosted")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("session_duration"), knownvalue.StringExact("24h")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("remote_uri"), knownvalue.StringExact("scim.com")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("deactivate_on_delete"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("authentication").AtMapKey("scheme"), knownvalue.StringExact("oauth2")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("authentication").AtMapKey("client_id"), knownvalue.StringExact("beepboop")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("authentication").AtMapKey("client_secret"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("authentication").AtMapKey("authorization_url"), knownvalue.StringExact("https://www.authorization.com")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("authentication").AtMapKey("scopes"), knownvalue.SetSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("authentication").AtMapKey("token_url"), knownvalue.StringExact("https://www.token.com")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("schema"), knownvalue.StringExact("urn:ietf:params:scim:schemas:core:2.0:User")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("enabled"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("filter"), knownvalue.StringExact("title pr or userType eq \"Intern\"")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("transform_jsonata"), knownvalue.StringExact("$merge([$, {'userName': $substringBefore($.userName, '@') & '+test@' & $substringAfter($.userName, '@')}])")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("operations").AtMapKey("create"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("operations").AtMapKey("update"), knownvalue.Bool(true)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("scim_config").AtMapKey("mappings").AtSliceIndex(0).AtMapKey("operations").AtMapKey("delete"), knownvalue.Bool(true)),
+				},
+			},
+			{
+				ResourceName:        resourceName,
+				ImportState:         true,
+				ImportStateVerify:   true,
+				ImportStateIdPrefix: fmt.Sprintf("accounts/%s/", accountID),
+				ImportStateVerifyIgnore: []string{"service_auth_401_redirect", "destinations", "enable_binding_cookie", "options_preflight_bypass", "self_hosted_domains"},
 			},
 			{
 				// Ensures no diff on last plan
@@ -408,6 +447,7 @@ func TestAccCloudflareAccessApplication_WithSCIMConfigOAuth2MissingRequired(t *t
 func TestAccCloudflareAccessApplication_WithCORS(t *testing.T) {
 	rnd := utils.GenerateRandomResourceName()
 	name := fmt.Sprintf("cloudflare_zero_trust_access_application.%s", rnd)
+	resourceName := name
 
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
@@ -418,17 +458,23 @@ func TestAccCloudflareAccessApplication_WithCORS(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccCloudflareAccessApplicationConfigWithCORS(rnd, zoneID, domain),
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(name, consts.ZoneIDSchemaKey, zoneID),
-					resource.TestCheckResourceAttr(name, "name", rnd),
-					resource.TestCheckResourceAttr(name, "domain", fmt.Sprintf("%s.%s", rnd, domain)),
-					resource.TestCheckResourceAttr(name, "type", "self_hosted"),
-					resource.TestCheckResourceAttr(name, "session_duration", "24h"),
-					resource.TestCheckResourceAttr(name, "cors_headers.allowed_methods.#", "3"),
-					resource.TestCheckResourceAttr(name, "cors_headers.allowed_origins.#", "1"),
-					resource.TestCheckResourceAttr(name, "cors_headers.max_age", "10"),
-					resource.TestCheckResourceAttr(name, "auto_redirect_to_identity", "false"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New(consts.ZoneIDSchemaKey), knownvalue.StringExact(zoneID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rnd)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("domain"), knownvalue.StringExact(fmt.Sprintf("%s.%s", rnd, domain))),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("type"), knownvalue.StringExact("self_hosted")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("session_duration"), knownvalue.StringExact("24h")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cors_headers").AtMapKey("allowed_methods"), knownvalue.ListSizeExact(3)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cors_headers").AtMapKey("allowed_origins"), knownvalue.ListSizeExact(1)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("cors_headers").AtMapKey("max_age"), knownvalue.Int64Exact(10)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("auto_redirect_to_identity"), knownvalue.Bool(false)),
+				},
+			},
+			{
+				ResourceName:        resourceName,
+				ImportState:         true,
+				ImportStateVerify:   true,
+				ImportStateIdPrefix: fmt.Sprintf("zones/%s/", zoneID),
 			},
 			{
 				// Ensures no diff on last plan
@@ -442,6 +488,7 @@ func TestAccCloudflareAccessApplication_WithCORS(t *testing.T) {
 func TestAccCloudflareAccessApplication_WithSAMLSaas(t *testing.T) {
 	rnd := utils.GenerateRandomResourceName()
 	name := fmt.Sprintf("cloudflare_zero_trust_access_application.%s", rnd)
+	resourceName := name
 	accountID := os.Getenv("CLOUDFLARE_ACCOUNT_ID")
 
 	resource.Test(t, resource.TestCase{
@@ -453,31 +500,36 @@ func TestAccCloudflareAccessApplication_WithSAMLSaas(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccCloudflareAccessApplicationConfigWithSAMLSaas(rnd, accountID),
-				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(name, consts.AccountIDSchemaKey, accountID),
-					resource.TestCheckResourceAttr(name, "name", rnd),
-					resource.TestCheckResourceAttr(name, "type", "saas"),
-					resource.TestCheckResourceAttr(name, "session_duration", "24h"),
-					resource.TestCheckResourceAttr(name, "saas_app.sp_entity_id", "saas-app.example"),
-					resource.TestCheckResourceAttr(name, "saas_app.consumer_service_url", "https://saas-app.example/sso/saml/consume"),
-					resource.TestCheckResourceAttr(name, "saas_app.name_id_format", "email"),
-					resource.TestCheckResourceAttr(name, "saas_app.default_relay_state", "https://saas-app.example"),
-					resource.TestCheckResourceAttr(name, "saas_app.name_id_transform_jsonata", "$substringBefore(email, '@') & '+sandbox@' & $substringAfter(email, '@')"),
-					resource.TestCheckResourceAttr(name, "saas_app.saml_attribute_transform_jsonata", "$ ~>| groups | {'group_name': name} |"),
-
-					resource.TestCheckResourceAttrSet(name, "saas_app.idp_entity_id"),
-					resource.TestCheckResourceAttrSet(name, "saas_app.public_key"),
-					resource.TestCheckResourceAttrSet(name, "saas_app.sso_endpoint"),
-
-					resource.TestCheckResourceAttr(name, "saas_app.custom_attributes.#", "2"),
-					resource.TestCheckResourceAttr(name, "saas_app.custom_attributes.0.name", "email"),
-					resource.TestCheckResourceAttr(name, "saas_app.custom_attributes.0.name_format", "urn:oasis:names:tc:SAML:2.0:attrname-format:basic"),
-					resource.TestCheckResourceAttr(name, "saas_app.custom_attributes.0.source.name", "user_email"),
-					resource.TestCheckResourceAttr(name, "saas_app.custom_attributes.1.name", "rank"),
-					resource.TestCheckResourceAttr(name, "saas_app.custom_attributes.1.source.name", "rank"),
-					resource.TestCheckResourceAttr(name, "saas_app.custom_attributes.1.friendly_name", "Rank"),
-					resource.TestCheckResourceAttr(name, "saas_app.custom_attributes.1.required", "true"),
-				),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New(consts.AccountIDSchemaKey), knownvalue.StringExact(accountID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rnd)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("type"), knownvalue.StringExact("saas")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("session_duration"), knownvalue.StringExact("24h")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("sp_entity_id"), knownvalue.StringExact("saas-app.example")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("consumer_service_url"), knownvalue.StringExact("https://saas-app.example/sso/saml/consume")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("name_id_format"), knownvalue.StringExact("email")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("default_relay_state"), knownvalue.StringExact("https://saas-app.example")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("name_id_transform_jsonata"), knownvalue.StringExact("$substringBefore(email, '@') & '+sandbox@' & $substringAfter(email, '@')")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("saml_attribute_transform_jsonata"), knownvalue.StringExact("$ ~>| groups | {'group_name': name} |")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("idp_entity_id"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("public_key"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("sso_endpoint"), knownvalue.NotNull()),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("custom_attributes"), knownvalue.ListSizeExact(2)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("custom_attributes").AtSliceIndex(0).AtMapKey("name"), knownvalue.StringExact("email")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("custom_attributes").AtSliceIndex(0).AtMapKey("name_format"), knownvalue.StringExact("urn:oasis:names:tc:SAML:2.0:attrname-format:basic")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("custom_attributes").AtSliceIndex(0).AtMapKey("source").AtMapKey("name"), knownvalue.StringExact("user_email")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("custom_attributes").AtSliceIndex(1).AtMapKey("name"), knownvalue.StringExact("rank")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("custom_attributes").AtSliceIndex(1).AtMapKey("source").AtMapKey("name"), knownvalue.StringExact("rank")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("custom_attributes").AtSliceIndex(1).AtMapKey("friendly_name"), knownvalue.StringExact("Rank")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("custom_attributes").AtSliceIndex(1).AtMapKey("required"), knownvalue.Bool(true)),
+				},
+			},
+			{
+				ResourceName:        resourceName,
+				ImportState:         true,
+				ImportStateVerify:   true,
+				ImportStateIdPrefix: fmt.Sprintf("accounts/%s/", accountID),
+				ImportStateVerifyIgnore: []string{"service_auth_401_redirect", "destinations", "enable_binding_cookie", "options_preflight_bypass", "self_hosted_domains"},
 			},
 			{
 				// Ensures no diff on last plan
@@ -493,28 +545,28 @@ func TestAccCloudflareAccessApplication_WithSAMLSaas_Import(t *testing.T) {
 	accountID := os.Getenv("CLOUDFLARE_ACCOUNT_ID")
 	rnd := utils.GenerateRandomResourceName()
 	name := "cloudflare_zero_trust_access_application." + rnd
+	resourceName := name
 
-	checkFn := resource.ComposeTestCheckFunc(
-		resource.TestCheckResourceAttr(name, consts.AccountIDSchemaKey, accountID),
-		resource.TestCheckResourceAttr(name, "name", rnd),
-		resource.TestCheckResourceAttr(name, "type", "saas"),
-		resource.TestCheckResourceAttr(name, "session_duration", "24h"),
-		resource.TestCheckResourceAttr(name, "saas_app.sp_entity_id", "saas-app.example"),
-		resource.TestCheckResourceAttr(name, "saas_app.consumer_service_url", "https://saas-app.example/sso/saml/consume"),
-		resource.TestCheckResourceAttr(name, "saas_app.name_id_format", "email"),
-		resource.TestCheckResourceAttr(name, "saas_app.default_relay_state", "https://saas-app.example"),
-		resource.TestCheckResourceAttr(name, "saas_app.name_id_transform_jsonata", "$substringBefore(email, '@') & '+sandbox@' & $substringAfter(email, '@')"),
-		resource.TestCheckResourceAttr(name, "saas_app.saml_attribute_transform_jsonata", "$ ~>| groups | {'group_name': name} |"),
-
-		resource.TestCheckResourceAttr(name, "saas_app.custom_attributes.#", "2"),
-		resource.TestCheckResourceAttr(name, "saas_app.custom_attributes.0.name", "email"),
-		resource.TestCheckResourceAttr(name, "saas_app.custom_attributes.0.name_format", "urn:oasis:names:tc:SAML:2.0:attrname-format:basic"),
-		resource.TestCheckResourceAttr(name, "saas_app.custom_attributes.0.source.name", "user_email"),
-		resource.TestCheckResourceAttr(name, "saas_app.custom_attributes.1.name", "rank"),
-		resource.TestCheckResourceAttr(name, "saas_app.custom_attributes.1.source.name", "rank"),
-		resource.TestCheckResourceAttr(name, "saas_app.custom_attributes.1.friendly_name", "Rank"),
-		resource.TestCheckResourceAttr(name, "saas_app.custom_attributes.1.required", "true"),
-	)
+	stateChecks := []statecheck.StateCheck{
+		statecheck.ExpectKnownValue(resourceName, tfjsonpath.New(consts.AccountIDSchemaKey), knownvalue.StringExact(accountID)),
+		statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rnd)),
+		statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("type"), knownvalue.StringExact("saas")),
+		statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("session_duration"), knownvalue.StringExact("24h")),
+		statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("sp_entity_id"), knownvalue.StringExact("saas-app.example")),
+		statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("consumer_service_url"), knownvalue.StringExact("https://saas-app.example/sso/saml/consume")),
+		statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("name_id_format"), knownvalue.StringExact("email")),
+		statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("default_relay_state"), knownvalue.StringExact("https://saas-app.example")),
+		statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("name_id_transform_jsonata"), knownvalue.StringExact("$substringBefore(email, '@') & '+sandbox@' & $substringAfter(email, '@')")),
+		statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("saml_attribute_transform_jsonata"), knownvalue.StringExact("$ ~>| groups | {'group_name': name} |")),
+		statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("custom_attributes"), knownvalue.ListSizeExact(2)),
+		statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("custom_attributes").AtSliceIndex(0).AtMapKey("name"), knownvalue.StringExact("email")),
+		statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("custom_attributes").AtSliceIndex(0).AtMapKey("name_format"), knownvalue.StringExact("urn:oasis:names:tc:SAML:2.0:attrname-format:basic")),
+		statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("custom_attributes").AtSliceIndex(0).AtMapKey("source").AtMapKey("name"), knownvalue.StringExact("user_email")),
+		statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("custom_attributes").AtSliceIndex(1).AtMapKey("name"), knownvalue.StringExact("rank")),
+		statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("custom_attributes").AtSliceIndex(1).AtMapKey("source").AtMapKey("name"), knownvalue.StringExact("rank")),
+		statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("custom_attributes").AtSliceIndex(1).AtMapKey("friendly_name"), knownvalue.StringExact("Rank")),
+		statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("saas_app").AtMapKey("custom_attributes").AtSliceIndex(1).AtMapKey("required"), knownvalue.Bool(true)),
+	}
 
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
@@ -525,14 +577,15 @@ func TestAccCloudflareAccessApplication_WithSAMLSaas_Import(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: testAccCloudflareAccessApplicationConfigWithSAMLSaas(rnd, accountID),
-				Check:  checkFn,
+				ConfigStateChecks: stateChecks,
 			},
 			{
+				Config:              testAccCloudflareAccessApplicationConfigWithSAMLSaas(rnd, accountID),
 				ImportState:         true,
 				ImportStateVerify:   true,
-				ResourceName:        name,
+				ResourceName:        resourceName,
 				ImportStateIdPrefix: fmt.Sprintf("accounts/%s/", accountID),
-				Check:               checkFn,
+				ConfigStateChecks:   stateChecks,
 			},
 			{
 				// Ensures no diff on last plan
@@ -1658,4 +1711,204 @@ func testAccessApplicationWithInvalidSaas(resourceID, accountID string) string {
 
 func testAccCloudflareAccessApplicationWarpInvalid(rnd, accountID string) string {
 	return acctest.LoadTestCase("accessapplicationconfigwarpinvalid.tf", rnd, accountID)
+}
+
+func TestAccCloudflareAccessApplication_WithOptionsPreflightBypass(t *testing.T) {
+	rnd := utils.GenerateRandomResourceName()
+	name := fmt.Sprintf("cloudflare_zero_trust_access_application.%s", rnd)
+	resourceName := name
+
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			acctest.TestAccPreCheck(t)
+		},
+		ProtoV6ProviderFactories: acctest.TestAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckCloudflareAccessApplicationDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudflareAccessApplicationConfigWithOptionsPreflightBypass(rnd, domain, cloudflare.ZoneIdentifier(zoneID)),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New(consts.ZoneIDSchemaKey), knownvalue.StringExact(zoneID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rnd)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("domain"), knownvalue.StringExact(fmt.Sprintf("%s.%s", rnd, domain))),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("type"), knownvalue.StringExact("self_hosted")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("options_preflight_bypass"), knownvalue.Bool(true)),
+				},
+			},
+		},
+	})
+}
+
+func TestAccCloudflareAccessApplication_WithAllowIframe(t *testing.T) {
+	rnd := utils.GenerateRandomResourceName()
+	name := fmt.Sprintf("cloudflare_zero_trust_access_application.%s", rnd)
+	resourceName := name
+
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			acctest.TestAccPreCheck(t)
+		},
+		ProtoV6ProviderFactories: acctest.TestAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckCloudflareAccessApplicationDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudflareAccessApplicationConfigWithAllowIframe(rnd, domain, cloudflare.ZoneIdentifier(zoneID)),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New(consts.ZoneIDSchemaKey), knownvalue.StringExact(zoneID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rnd)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("domain"), knownvalue.StringExact(fmt.Sprintf("%s.%s", rnd, domain))),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("type"), knownvalue.StringExact("self_hosted")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("allow_iframe"), knownvalue.Bool(true)),
+				},
+			},
+		},
+	})
+}
+
+func TestAccCloudflareAccessApplication_WithReadServiceTokensFromHeader(t *testing.T) {
+	rnd := utils.GenerateRandomResourceName()
+	name := fmt.Sprintf("cloudflare_zero_trust_access_application.%s", rnd)
+	resourceName := name
+
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			acctest.TestAccPreCheck(t)
+		},
+		ProtoV6ProviderFactories: acctest.TestAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckCloudflareAccessApplicationDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudflareAccessApplicationConfigWithReadServiceTokensFromHeader(rnd, domain, cloudflare.ZoneIdentifier(zoneID)),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New(consts.ZoneIDSchemaKey), knownvalue.StringExact(zoneID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rnd)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("domain"), knownvalue.StringExact(fmt.Sprintf("%s.%s", rnd, domain))),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("type"), knownvalue.StringExact("self_hosted")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("read_service_tokens_from_header"), knownvalue.StringExact("X-Service-Token")),
+				},
+			},
+		},
+	})
+}
+
+func TestAccCloudflareAccessApplication_WithServiceAuth401Redirect(t *testing.T) {
+	rnd := utils.GenerateRandomResourceName()
+	name := fmt.Sprintf("cloudflare_zero_trust_access_application.%s", rnd)
+	resourceName := name
+
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			acctest.TestAccPreCheck(t)
+		},
+		ProtoV6ProviderFactories: acctest.TestAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckCloudflareAccessApplicationDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudflareAccessApplicationConfigWithServiceAuth401Redirect(rnd, domain, cloudflare.ZoneIdentifier(zoneID)),
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New(consts.ZoneIDSchemaKey), knownvalue.StringExact(zoneID)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("name"), knownvalue.StringExact(rnd)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("domain"), knownvalue.StringExact(fmt.Sprintf("%s.%s", rnd, domain))),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("type"), knownvalue.StringExact("self_hosted")),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("service_auth_401_redirect"), knownvalue.Bool(true)),
+				},
+			},
+		},
+	})
+}
+
+func TestAccCloudflareAccessApplication_BasicZone_Import(t *testing.T) {
+	rnd := utils.GenerateRandomResourceName()
+	name := fmt.Sprintf("cloudflare_zero_trust_access_application.%s", rnd)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			acctest.TestAccPreCheck(t)
+		},
+		ProtoV6ProviderFactories: acctest.TestAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckCloudflareAccessApplicationDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudflareAccessApplicationConfigBasic(rnd, domain, cloudflare.ZoneIdentifier(zoneID)),
+			},
+			{
+				ResourceName:            name,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"service_auth_401_redirect", "destinations", "enable_binding_cookie", "options_preflight_bypass", "self_hosted_domains"},
+			},
+		},
+	})
+}
+
+func TestAccCloudflareAccessApplication_BasicAccount_Import(t *testing.T) {
+	rnd := utils.GenerateRandomResourceName()
+	name := fmt.Sprintf("cloudflare_zero_trust_access_application.%s", rnd)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			acctest.TestAccPreCheck(t)
+		},
+		ProtoV6ProviderFactories: acctest.TestAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckCloudflareAccessApplicationDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudflareAccessApplicationConfigBasic(rnd, domain, cloudflare.AccountIdentifier(accountID)),
+			},
+			{
+				ResourceName:            name,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"service_auth_401_redirect", "destinations", "enable_binding_cookie", "options_preflight_bypass", "self_hosted_domains"},
+			},
+		},
+	})
+}
+
+func testAccCloudflareAccessApplicationConfigWithOptionsPreflightBypass(rnd, domain string, identifier *cloudflare.ResourceContainer) string {
+	return fmt.Sprintf(`
+resource "cloudflare_zero_trust_access_application" "%[1]s" {
+  %[4]s_id = "%[5]s"
+  name = "%[1]s"
+  domain = "%[1]s.%[2]s"
+  type = "self_hosted"
+  options_preflight_bypass = true
+}
+`, rnd, domain, rnd, identifier.Type, identifier.Identifier)
+}
+
+func testAccCloudflareAccessApplicationConfigWithAllowIframe(rnd, domain string, identifier *cloudflare.ResourceContainer) string {
+	return fmt.Sprintf(`
+resource "cloudflare_zero_trust_access_application" "%[1]s" {
+  %[4]s_id = "%[5]s"
+  name = "%[1]s"
+  domain = "%[1]s.%[2]s"
+  type = "self_hosted"
+  allow_iframe = true
+}
+`, rnd, domain, rnd, identifier.Type, identifier.Identifier)
+}
+
+func testAccCloudflareAccessApplicationConfigWithReadServiceTokensFromHeader(rnd, domain string, identifier *cloudflare.ResourceContainer) string {
+	return fmt.Sprintf(`
+resource "cloudflare_zero_trust_access_application" "%[1]s" {
+  %[4]s_id = "%[5]s"
+  name = "%[1]s"
+  domain = "%[1]s.%[2]s"
+  type = "self_hosted"
+  read_service_tokens_from_header = "X-Service-Token"
+}
+`, rnd, domain, rnd, identifier.Type, identifier.Identifier)
+}
+
+func testAccCloudflareAccessApplicationConfigWithServiceAuth401Redirect(rnd, domain string, identifier *cloudflare.ResourceContainer) string {
+	return fmt.Sprintf(`
+resource "cloudflare_zero_trust_access_application" "%[1]s" {
+  %[4]s_id = "%[5]s"
+  name = "%[1]s"
+  domain = "%[1]s.%[2]s"
+  type = "self_hosted"
+  service_auth_401_redirect = true
+}
+`, rnd, domain, rnd, identifier.Type, identifier.Identifier)
 }
